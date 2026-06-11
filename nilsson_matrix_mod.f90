@@ -5,7 +5,7 @@ module nilsson_matrix_mod
     real(dp), parameter :: pi = 3.1415926535897932384626433832795_dp
     public :: pi
     type nuclear
-        integer :: A = 100
+        integer :: A 
         integer :: Z
         integer :: N
         real(dp) :: hbar_omega0 
@@ -24,18 +24,21 @@ module nilsson_matrix_mod
         subroutine compute_nilsson_parameters(nucleus, params)
             implicit none
             type(nuclear), intent(in) :: nucleus
+            ! type(basis_state), intent(in) :: basis(:)
+            ! integer, intent(in) :: size(basis)
             type(nilsson_parameters), intent(out) :: params
 
             real(dp) :: A, Z, N
-            real(dp) :: hbar_omega0
+            ! real(dp) :: hbar_omega0
 
             A = real(nucleus%A, dp)
             Z = real(nucleus%Z, dp)
             N = real(nucleus%N, dp)
             params%hbar_omega0 = 41.0_dp / (A**(1.0_dp/3.0_dp))
 
-            params%mu = 0.5
-            params%eta = 0.0_dp
+
+            
+            ! params%eta = 0.0_dp
             params%delta = 0.0_dp
             params%kappa = 0.05
             params%hbar_omega = params%hbar_omega0 *(1.0_dp - 4.0_dp/3.0_dp &
@@ -65,6 +68,18 @@ module nilsson_matrix_mod
 
             do j = 1, nbasis
                 do i = 1, nbasis
+                    select case (basis(j)%N)
+                    case (0:2)
+                        mu = 0.0_dp
+                    case (3)
+                        mu = 0.35_dp
+                    case (4)
+                        mu = 0.45_dp
+                    case (5:6)
+                        mu = 0.45_dp
+                    case (7)
+                        mu = 0.40_dp
+                    end select
 
                     ! oscillator term
                     if (same_basis(basis(i), basis(j))) then
@@ -110,11 +125,11 @@ module nilsson_matrix_mod
 
                     ! l^2 term
                     if (same_basis(basis(i), basis(j))) then
-                        l2avg = 0.5_dp * real(basis(j)%N * (basis(j)%N + 3), dp)
+                        ! l2avg = 0.5_dp * real(basis(j)%N * (basis(j)%N + 3), dp)
 
                         matrix(i,j) = matrix(i,j) &
                             - kappa * mu * hbar_omega0 &
-                            * (real(basis(j)%l * (basis(j)%l + 1), dp) - l2avg)
+                            * real(basis(j)%l * (basis(j)%l + 1), dp) 
                     end if
 
                     ! deformation term
@@ -163,40 +178,75 @@ module nilsson_matrix_mod
             real(dp) :: value
 
             ! This is a placeholder function. The actual implementation would depend on the specific form of the Y20 operator and the basis states.
-            value = sqrt(5.0_dp/4.0_dp/pi) *sqrt(real(2* l2 + 1, dp)/real(2*l1 + 1, dp)) * compute_Clebsch_Gordan(real(l2, dp), 2.0_dp, real(Delta2, dp), 0.0_dp, real(l1, dp), real(Delta1, dp)) * compute_Clebsch_Gordan(real(l2, dp), 2.0_dp, 0.0_dp, 0.0_dp, real(l1, dp), 0.0_dp) 
+            value = sqrt(5.0_dp/4.0_dp/pi) *sqrt(real(2* l2 + 1, dp)&
+            /real(2*l1 + 1, dp)) &
+            * compute_Clebsch_Gordan(real(l2, dp), 2.0_dp, real(Delta2, dp), &
+            0.0_dp, real(l1, dp), real(Delta1, dp)) &
+            * compute_Clebsch_Gordan(real(l2, dp), 2.0_dp,&
+             0.0_dp, 0.0_dp, real(l1, dp), 0.0_dp) 
         end function compute_exp_Y20
 
-        function compute_Clebsch_Gordan(j_1, j_2, m_1, m_2,J,M) result(CG)
+        function compute_Clebsch_Gordan(j_1, j_2, m_1, m_2, J, M) result(CG)
             implicit none
-            real(dp) :: j_1, j_2, m_1, m_2, J, M
-            real(dp) :: CG, sum_over_k
-            integer :: k
+            real(dp), intent(in) :: j_1, j_2, m_1, m_2, J, M
+            real(dp) :: CG, sum_over_k, pref1, pref2
+            integer :: k, k_min, k_max
+            integer :: a1, a2, a3, a4, a5, a6
 
-            if (m_1 + m_2 /= M) then
-                CG = 0.0_dp
-                return
-            else
-                sum_over_k = 0.0_dp
-                ! sum over k
-                ! k must satisfy the following conditions:
-                ! k >= 0
-                ! k <= j_1 - m_1
-                ! k <= j_2 + m_2
-                ! k <= J - m_1 - m_2
-                ! k <= j_1 + j_2 - J
-                do k = 0, min(j_1 - m_1, j_2 + m_2, J - m_1 - m_2, j_1 + j_2 - J)
-                    if (k < 0) cycle
-                    if (k > j_1 - m_1) cycle
-                    if (k > j_2 + m_2) cycle
-                    if (k > J - m_1 - m_2) cycle
-                    if (k > j_1 + j_2 - J) cycle
-                    sum_over_k = sum_over_k + (-1) ** k / (gamma(real(k, dp)) * gamma(real(j_1 - m_1 - k, dp)) * gamma(real(j_2 + m_2 - k, dp)) * gamma(real(J - j_1 - m_2 + k, dp)) * gamma(real(j_1 + j_2 - J - k, dp))* gamma(real(J- j_1 - j_2 + k, dp)))
-                end do
-                CG = sqrt( (2*J + 1) * gamma(real(j_1 + j_2 - J, dp)) * gamma(real(J + j_1 - j_2, dp)) * gamma(real(J + j_2 - j_1, dp)) / gamma(real(j_1 + j_2 + J + 1, dp)) ) &
-                * sqrt( gamma(real(j_1 + m_1, dp)) * gamma(real(j_1 - m_1, dp)) * gamma(real(j_2 + m_2, dp)) * gamma(real(j_2 - m_2, dp)) * gamma(real(J + M, dp)) * gamma(real(J - M, dp)) ) &
-                * sum_over_k
-            end if
-            
+            CG = 0.0_dp
+
+            ! Selection rules
+            if (abs((m_1 + m_2) - M) > 1.0e-12_dp) return
+            if (J < abs(j_1 - j_2) .or. J > j_1 + j_2) return
+            if (abs(m_1) > j_1 .or. abs(m_2) > j_2 .or. abs(M) > J) return
+
+            ! The following Racah formula is written with factorials.
+            ! Since factorial(n) = gamma(n+1), every gamma argument below is +1.
+            k_min = max(0, &
+                        nint(j_2 - J - m_1), &
+                        nint(j_1 - J + m_2))
+
+            k_max = min(nint(j_1 + j_2 - J), &
+                        nint(j_1 - m_1), &
+                        nint(j_2 + m_2))
+
+            if (k_min > k_max) return
+
+            sum_over_k = 0.0_dp
+
+            do k = k_min, k_max
+                a1 = k
+                a2 = nint(j_1 + j_2 - J - k)
+                a3 = nint(j_1 - m_1 - k)
+                a4 = nint(j_2 + m_2 - k)
+                a5 = nint(J - j_2 + m_1 + k)
+                a6 = nint(J - j_1 - m_2 + k)
+
+                if (min(a1,a2,a3,a4,a5,a6) < 0) cycle
+
+                sum_over_k = sum_over_k + (-1.0_dp)**k &
+                    / ( gamma(real(a1 + 1, dp)) &
+                      * gamma(real(a2 + 1, dp)) &
+                      * gamma(real(a3 + 1, dp)) &
+                      * gamma(real(a4 + 1, dp)) &
+                      * gamma(real(a5 + 1, dp)) &
+                      * gamma(real(a6 + 1, dp)) )
+            end do
+
+            pref1 = sqrt( (2.0_dp*J + 1.0_dp) &
+                * gamma(J + j_1 - j_2 + 1.0_dp) &
+                * gamma(J - j_1 + j_2 + 1.0_dp) &
+                * gamma(j_1 + j_2 - J + 1.0_dp) &
+                / gamma(j_1 + j_2 + J + 2.0_dp) )
+
+            pref2 = sqrt( gamma(J + M + 1.0_dp) &
+                * gamma(J - M + 1.0_dp) &
+                * gamma(j_1 - m_1 + 1.0_dp) &
+                * gamma(j_1 + m_1 + 1.0_dp) &
+                * gamma(j_2 - m_2 + 1.0_dp) &
+                * gamma(j_2 + m_2 + 1.0_dp) )
+
+            CG = pref1 * pref2 * sum_over_k
 
         end function compute_Clebsch_Gordan
 
@@ -222,5 +272,88 @@ module nilsson_matrix_mod
             end if
         end function exp_r_2
         
+        subroutine diagonalize_matrix(matrix, nbasis, eigenvalues, eigenvectors)
+            implicit none
+            real(dp), intent(inout) :: matrix(nbasis, nbasis)
+            integer, intent(in) :: nbasis
+            real(dp), intent(out) :: eigenvalues(nbasis)
+            real(dp), intent(out) :: eigenvectors(nbasis, nbasis)
+
+            ! This is a placeholder subroutine. The actual implementation would depend on the specific diagonalization method used (e.g., LAPACK routines).
+            ! For example, you could use the DSYEV routine from LAPACK to diagonalize the matrix and obtain the eigenvalues and eigenvectors.
+
+
+        end subroutine diagonalize_matrix
+
+        subroutine compute_j2_matrix_element(params, basis, nbasis, matrix)
+            implicit none
+            type(nilsson_parameters), intent(in) :: params
+            real(dp) :: mu, eta, delta, kappa, hbar_omega, hbar_omega0
+            type(basis_state), intent(in) :: basis(:)
+            integer, intent(in) :: nbasis
+            real(dp), intent(out) :: matrix(nbasis, nbasis)
+
+            integer :: i, j
+            real(dp) :: l2avg, r2y20
+
+            mu = params%mu
+            eta = params%eta
+            delta = params%delta
+            kappa = params%kappa
+            hbar_omega = params%hbar_omega
+            hbar_omega0 = params%hbar_omega0
+
+            matrix(:,:) = 0.0_dp
+
+            do j = 1, nbasis
+                do i = 1, nbasis
+                    ! l dot s
+                    if (basis(i)%N == basis(j)%N .and. basis(i)%l == basis(j)%l) then
+
+                        ! diagonal l_z s_z
+                        if (basis(i)%Delta == basis(j)%Delta .and. &
+                            basis(i)%Sigma2 == basis(j)%Sigma2) then
+                            matrix(i,j) = matrix(i,j) &
+                                + real(basis(j)%Delta, dp) &
+                                * real(basis(j)%Sigma2, dp)
+
+                        end if
+
+                        ! l_+ s_-
+                        if (basis(i)%Delta == basis(j)%Delta + 1 .and. &
+                            basis(i)%Sigma2 == basis(j)%Sigma2 - 2) then
+
+                            matrix(i,j) = matrix(i,j) &  
+                               + sqrt(real((basis(j)%l - basis(j)%Delta) &
+                                        * (basis(j)%l + basis(j)%Delta + 1), dp))
+                        end if
+
+                        ! l_- s_+
+                        if (basis(i)%Delta == basis(j)%Delta - 1 .and. &
+                            basis(i)%Sigma2 == basis(j)%Sigma2 + 2) then
+
+                            matrix(i,j) = matrix(i,j) & 
+                               + sqrt(real((basis(j)%l + basis(j)%Delta) &
+                                        * (basis(j)%l - basis(j)%Delta + 1), dp))
+                        end if
+
+                    end if
+
+                    if (same_basis(basis(i), basis(j))) then
+                        ! l2avg = 0.5_dp * real(basis(j)%N * (basis(j)%N + 3), dp)
+
+                        matrix(i,j) = matrix(i,j) &
+                            + real(basis(j)%l * (basis(j)%l + 1), dp) & 
+                            + real(basis(j)%Delta, dp) &
+                            * 0.5_dp * real(basis(j)%Sigma2, dp) + 0.75_dp
+                    end if
+
+
+                    
+
+                end do
+            end do
+
+        end subroutine compute_j2_matrix_element
 
 end module nilsson_matrix_mod
