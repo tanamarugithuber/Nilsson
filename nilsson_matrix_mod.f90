@@ -38,9 +38,10 @@ module nilsson_matrix_mod
 
 
             
-            ! params%eta = 0.0_dp
-            params%delta = 0.0_dp
+
             params%kappa = 0.05
+            params%eta = params%delta*(1.0_dp - 4.0_dp/3.0_dp * params%delta**2 &
+            - 16.0_dp/27.0_dp * params%delta**3)**(-1.0_dp/6.0_dp)/params%kappa
             params%hbar_omega = params%hbar_omega0 *(1.0_dp - 4.0_dp/3.0_dp &
             * params%delta**2 - 16.0_dp/27.0_dp * params%delta**3)**(-1.0_dp/6.0_dp)
 
@@ -287,73 +288,67 @@ module nilsson_matrix_mod
 
         subroutine compute_j2_matrix_element(params, basis, nbasis, matrix)
             implicit none
+
             type(nilsson_parameters), intent(in) :: params
-            real(dp) :: mu, eta, delta, kappa, hbar_omega, hbar_omega0
             type(basis_state), intent(in) :: basis(:)
             integer, intent(in) :: nbasis
             real(dp), intent(out) :: matrix(nbasis, nbasis)
 
             integer :: i, j
-            real(dp) :: l2avg, r2y20
-
-            mu = params%mu
-            eta = params%eta
-            delta = params%delta
-            kappa = params%kappa
-            hbar_omega = params%hbar_omega
-            hbar_omega0 = params%hbar_omega0
+            real(dp) :: l, lambda, sigma
+            real(dp) :: ls_elem
 
             matrix(:,:) = 0.0_dp
 
             do j = 1, nbasis
                 do i = 1, nbasis
-                    ! l dot s
-                    if (basis(i)%N == basis(j)%N .and. basis(i)%l == basis(j)%l) then
 
-                        ! diagonal l_z s_z
+                    ls_elem = 0.0_dp
+
+                    if (basis(i)%N == basis(j)%N .and. &
+                        basis(i)%l == basis(j)%l) then
+
+                        l = real(basis(j)%l, dp)
+                        lambda = real(basis(j)%Delta, dp)
+                        sigma = 0.5_dp * real(basis(j)%Sigma2, dp)
+
+                        ! diagonal part: L_z S_z
                         if (basis(i)%Delta == basis(j)%Delta .and. &
                             basis(i)%Sigma2 == basis(j)%Sigma2) then
-                            matrix(i,j) = matrix(i,j) &
-                                + real(basis(j)%Delta, dp) &
-                                * real(basis(j)%Sigma2, dp)
 
+                            ls_elem = ls_elem + lambda * sigma
                         end if
 
-                        ! l_+ s_-
+                        ! 1/2 L_+ S_-
                         if (basis(i)%Delta == basis(j)%Delta + 1 .and. &
                             basis(i)%Sigma2 == basis(j)%Sigma2 - 2) then
 
-                            matrix(i,j) = matrix(i,j) &  
-                               + sqrt(real((basis(j)%l - basis(j)%Delta) &
-                                        * (basis(j)%l + basis(j)%Delta + 1), dp))
+                            ls_elem = ls_elem + 0.5_dp * &
+                                sqrt(real((basis(j)%l - basis(j)%Delta) * &
+                                        (basis(j)%l + basis(j)%Delta + 1), dp))
                         end if
 
-                        ! l_- s_+
+                        ! 1/2 L_- S_+
                         if (basis(i)%Delta == basis(j)%Delta - 1 .and. &
                             basis(i)%Sigma2 == basis(j)%Sigma2 + 2) then
 
-                            matrix(i,j) = matrix(i,j) & 
-                               + sqrt(real((basis(j)%l + basis(j)%Delta) &
-                                        * (basis(j)%l - basis(j)%Delta + 1), dp))
+                            ls_elem = ls_elem + 0.5_dp * &
+                                sqrt(real((basis(j)%l + basis(j)%Delta) * &
+                                        (basis(j)%l - basis(j)%Delta + 1), dp))
                         end if
 
                     end if
 
+                    ! J^2 = L^2 + S^2 + 2 L.S
+                    matrix(i,j) = matrix(i,j) + 2.0_dp * ls_elem
+
                     if (same_basis(basis(i), basis(j))) then
-                        ! l2avg = 0.5_dp * real(basis(j)%N * (basis(j)%N + 3), dp)
-
-                        matrix(i,j) = matrix(i,j) &
-                            + real(basis(j)%l * (basis(j)%l + 1), dp) & 
-                            + real(basis(j)%Delta, dp) &
-                            * 0.5_dp * real(basis(j)%Sigma2, dp) + 0.75_dp
+                        matrix(i,j) = matrix(i,j) + &
+                            real(basis(j)%l * (basis(j)%l + 1), dp) + 0.75_dp
                     end if
-
-
-                    
 
                 end do
             end do
-
         end subroutine compute_j2_matrix_element
 
 end module nilsson_matrix_mod

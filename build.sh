@@ -1,5 +1,6 @@
 #!/bin/bash
 
+rm -f *.txt
 rm -f *.mod
 rm -f *.exe
 rm -f *.o
